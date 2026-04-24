@@ -59,6 +59,22 @@ void MotorController::driveTankPercent(int leftPercent, int rightPercent)
   runMotor(channels_.rightA, channels_.rightB, rightSpeed);
 }
 
+void MotorController::driveJoystickPercent(int xPercent, int yPercent)
+{
+  const int boundedX = constrain(xPercent, -100, 100);
+  const int boundedY = constrain(yPercent, -100, 100);
+
+  // Arcade to tank mixing: Y drives forward/backward, X steers.
+  int left = boundedY + boundedX;
+  int right = boundedY - boundedX;
+
+  left = constrain(left, -100, 100);
+  right = constrain(right, -100, 100);
+
+  Serial.printf("[motor] joystick x=%d%% y=%d%% -> left=%d%% right=%d%%\n", boundedX, boundedY, left, right);
+  driveTankPercent(left, right);
+}
+
 void MotorController::stop()
 {
   Serial.println("[motor] stop");

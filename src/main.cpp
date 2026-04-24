@@ -50,6 +50,12 @@ void setup()
         motorController.setLeftToRightRatio(leftToRightRatio);
         motorController.driveTankPercent(leftPercent, rightPercent);
       },
+      [](int xPercent, int yPercent, float speedMultiplier, float leftToRightRatio)
+      {
+        motorController.setSpeedMultiplier(speedMultiplier);
+        motorController.setLeftToRightRatio(leftToRightRatio);
+        motorController.driveJoystickPercent(xPercent, yPercent);
+      },
       []()
       {
         motorController.stop();

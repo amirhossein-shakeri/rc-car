@@ -27,6 +27,7 @@ public:
   void setSpeedMultiplier(float multiplier);
   void setLeftToRightRatio(float ratio);
   void driveTankPercent(int leftPercent, int rightPercent);
+  void driveJoystickPercent(int xPercent, int yPercent);
   void stop();
 
 private:
