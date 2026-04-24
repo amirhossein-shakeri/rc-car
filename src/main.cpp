@@ -24,17 +24,18 @@ namespace
 
   constexpr uint32_t kPwmFrequency = 20000;
   constexpr uint8_t kPwmResolution = 10;
+  constexpr bool kEnableMotorBootSelfTest = true;
   constexpr char kApSsid[] = "RC-Car-ESP32";
   constexpr char kApPassword[] = "rc-car-2026";
 
   const FeedbackConfig kFeedbackConfig{
-      true,  // enableLed
-      true,  // enableBuzzer
+      false, // enableLed (optional; keep off by default for motor baseline debugging)
+      false, // enableBuzzer (optional; keep off by default for motor baseline debugging)
       2,     // ledPin (NodeMCU-32S builtin LED commonly on GPIO2)
       true,  // ledActiveHigh
       4,     // ledPwmChannel
       15,    // buzzerPin
-      true,  // buzzerUsePwm
+      false, // buzzerUsePwm (active buzzer modules commonly expect digital on/off)
       5,     // buzzerPwmChannel
       2000,  // buzzerFrequencyHz
       180,   // buzzerVolume (0-255)
@@ -58,6 +59,24 @@ void applyDriveTuningFromSettings()
       appSettings.driveTuning.minStartRightPercent);
 }
 
+void runMotorBootSelfTestIfEnabled()
+{
+  if (!kEnableMotorBootSelfTest)
+  {
+    return;
+  }
+
+  Serial.println("[boot] Motor self-test start (legacy forward/backward).");
+  motorController.driveTankPercent(75, 75);
+  delay(700);
+  motorController.stop();
+  delay(120);
+  motorController.driveTankPercent(-75, -75);
+  delay(700);
+  motorController.stop();
+  Serial.println("[boot] Motor self-test complete.");
+}
+
 void setup()
 {
   Serial.begin(115200);
@@ -69,6 +88,7 @@ void setup()
 
   motorController.begin(kPwmFrequency, kPwmResolution);
   applyDriveTuningFromSettings();
+  runMotorBootSelfTestIfEnabled();
   feedbackController.begin();
   feedbackController.playStartupSound();
 

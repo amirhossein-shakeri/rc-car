@@ -10,7 +10,19 @@ void MotorController::begin(uint32_t pwmFrequency, uint8_t pwmResolutionBits)
   pwmResolutionBits_ = pwmResolutionBits;
   maxDuty_ = (1 << pwmResolutionBits_) - 1;
 
-  Serial.println("[motor] Initializing PWM channels...");
+  Serial.println("[motor] Initializing PWM channels (legacy-compatible mode)...");
+  Serial.printf(
+      "[motor] pins L(A,B)=(%u,%u) R(A,B)=(%u,%u)\n",
+      pins_.leftA,
+      pins_.leftB,
+      pins_.rightA,
+      pins_.rightB);
+  Serial.printf(
+      "[motor] channels L(A,B)=(%u,%u) R(A,B)=(%u,%u)\n",
+      channels_.leftA,
+      channels_.leftB,
+      channels_.rightA,
+      channels_.rightB);
   ledcSetup(channels_.leftA, pwmFrequency_, pwmResolutionBits_);
   ledcSetup(channels_.leftB, pwmFrequency_, pwmResolutionBits_);
   ledcSetup(channels_.rightA, pwmFrequency_, pwmResolutionBits_);
