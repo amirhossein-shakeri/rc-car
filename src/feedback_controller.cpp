@@ -14,9 +14,24 @@ void FeedbackController::begin()
 
   if (config_.enableBuzzer)
   {
-    pinMode(config_.buzzerPin, OUTPUT);
-    digitalWrite(config_.buzzerPin, LOW);
-    Serial.printf("[fx] Buzzer feedback enabled on pin=%u\n", config_.buzzerPin);
+    if (config_.buzzerUsePwm)
+    {
+      ledcSetup(config_.buzzerPwmChannel, config_.buzzerFrequencyHz, 8);
+      ledcAttachPin(config_.buzzerPin, config_.buzzerPwmChannel);
+      ledcWrite(config_.buzzerPwmChannel, 0);
+      Serial.printf(
+          "[fx] Buzzer PWM enabled pin=%u channel=%u freq=%uHz volume=%u\n",
+          config_.buzzerPin,
+          config_.buzzerPwmChannel,
+          config_.buzzerFrequencyHz,
+          config_.buzzerVolume);
+    }
+    else
+    {
+      pinMode(config_.buzzerPin, OUTPUT);
+      digitalWrite(config_.buzzerPin, LOW);
+      Serial.printf("[fx] Buzzer digital mode enabled pin=%u\n", config_.buzzerPin);
+    }
   }
 }
 
@@ -27,16 +42,32 @@ void FeedbackController::playStartupSound()
     return;
   }
 
-  // Startup beep sequence is intentionally blocking but only runs at boot.
-  digitalWrite(config_.buzzerPin, HIGH);
-  delay(45);
-  digitalWrite(config_.buzzerPin, LOW);
-  delay(35);
-  digitalWrite(config_.buzzerPin, HIGH);
-  delay(70);
-  digitalWrite(config_.buzzerPin, LOW);
-  delay(20);
+  // Startup melody is queued, so startup remains responsive.
+  queueNote(880, config_.buzzerVolume / 2, 70, 30);
+  queueNote(1240, config_.buzzerVolume, 120, 0);
   Serial.println("[fx] Startup sound played.");
+}
+
+void FeedbackController::playWifiConnectedSound()
+{
+  if (!config_.enableBuzzer)
+  {
+    return;
+  }
+  queueNote(1046, config_.buzzerVolume / 2, 50, 20);
+  queueNote(1396, config_.buzzerVolume, 80, 0);
+  Serial.println("[fx] Wi-Fi connected sound queued.");
+}
+
+void FeedbackController::playTuneSavedSound()
+{
+  if (!config_.enableBuzzer)
+  {
+    return;
+  }
+  queueNote(1318, config_.buzzerVolume / 2, 45, 20);
+  queueNote(1760, config_.buzzerVolume, 65, 0);
+  Serial.println("[fx] Tune saved sound queued.");
 }
 
 void FeedbackController::updateFromMotor(const MotorDutyState &dutyState)
@@ -81,9 +112,95 @@ void FeedbackController::loop()
 
   if (config_.enableBuzzer && buzzerActive_ && now >= buzzerOffAtMs_)
   {
-    digitalWrite(config_.buzzerPin, LOW);
+    stopBuzzer();
     buzzerActive_ = false;
   }
+
+  runBuzzerQueue();
+}
+
+void FeedbackController::queueNote(uint16_t frequencyHz, uint8_t volume, uint16_t durationMs, uint16_t pauseAfterMs)
+{
+  uint8_t nextTail = (noteTail_ + 1) % kMaxQueuedNotes;
+  if (nextTail == noteHead_)
+  {
+    Serial.println("[fx] Note queue full, dropping note.");
+    return;
+  }
+  noteQueue_[noteTail_].frequencyHz = frequencyHz;
+  noteQueue_[noteTail_].volume = volume;
+  noteQueue_[noteTail_].durationMs = durationMs;
+  noteQueue_[noteTail_].pauseAfterMs = pauseAfterMs;
+  noteTail_ = nextTail;
+}
+
+void FeedbackController::startQueuedNote(const BeepNote &note)
+{
+  if (!config_.enableBuzzer)
+  {
+    return;
+  }
+  if (config_.buzzerUsePwm)
+  {
+    ledcWriteTone(config_.buzzerPwmChannel, note.frequencyHz);
+    ledcWrite(config_.buzzerPwmChannel, constrain(note.volume, static_cast<uint8_t>(0), static_cast<uint8_t>(255)));
+  }
+  else
+  {
+    digitalWrite(config_.buzzerPin, HIGH);
+  }
+}
+
+void FeedbackController::stopBuzzer()
+{
+  if (!config_.enableBuzzer)
+  {
+    return;
+  }
+  if (config_.buzzerUsePwm)
+  {
+    ledcWrite(config_.buzzerPwmChannel, 0);
+  }
+  else
+  {
+    digitalWrite(config_.buzzerPin, LOW);
+  }
+}
+
+void FeedbackController::runBuzzerQueue()
+{
+  if (!config_.enableBuzzer)
+  {
+    return;
+  }
+
+  unsigned long now = millis();
+  if (notePlaying_)
+  {
+    if (now >= noteEndsAtMs_)
+    {
+      stopBuzzer();
+      notePlaying_ = false;
+    }
+    return;
+  }
+
+  if (now < notePauseEndsAtMs_)
+  {
+    return;
+  }
+
+  if (noteHead_ == noteTail_)
+  {
+    return;
+  }
+
+  BeepNote note = noteQueue_[noteHead_];
+  noteHead_ = (noteHead_ + 1) % kMaxQueuedNotes;
+  startQueuedNote(note);
+  notePlaying_ = true;
+  noteEndsAtMs_ = now + note.durationMs;
+  notePauseEndsAtMs_ = noteEndsAtMs_ + note.pauseAfterMs;
 }
 
 void FeedbackController::applyLed(int brightness)
@@ -99,8 +216,8 @@ void FeedbackController::triggerStopBeep()
   {
     return;
   }
-  digitalWrite(config_.buzzerPin, HIGH);
-  buzzerActive_ = true;
-  buzzerOffAtMs_ = millis() + config_.stopBeepMs;
+  queueNote(config_.buzzerFrequencyHz, config_.buzzerVolume, config_.stopBeepMs, 0);
+  buzzerActive_ = false;
+  buzzerOffAtMs_ = 0;
   Serial.println("[fx] stop beep");
 }

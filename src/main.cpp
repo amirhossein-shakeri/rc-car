@@ -4,6 +4,7 @@
 #include "feedback_controller.h"
 #include "motor_controller.h"
 #include "network_manager.h"
+#include "settings_store.h"
 
 namespace
 {
@@ -23,21 +24,21 @@ namespace
 
   constexpr uint32_t kPwmFrequency = 20000;
   constexpr uint8_t kPwmResolution = 10;
-  constexpr float kJoystickDeadzonePercent = 6.0f;
-  constexpr float kJoystickExpo = 1.8f;
-  constexpr float kJoystickMinStartLeftPercent = 30.0f;
-  constexpr float kJoystickMinStartRightPercent = 30.0f;
   constexpr char kApSsid[] = "RC-Car-ESP32";
   constexpr char kApPassword[] = "rc-car-2026";
 
   const FeedbackConfig kFeedbackConfig{
-      true, // enableLed
-      true, // enableBuzzer
-      2,    // ledPin (NodeMCU-32S builtin LED commonly on GPIO2)
-      true, // ledActiveHigh
-      4,    // ledPwmChannel
-      15,   // buzzerPin
-      45,   // stopBeepMs
+      true,  // enableLed
+      true,  // enableBuzzer
+      2,     // ledPin (NodeMCU-32S builtin LED commonly on GPIO2)
+      true,  // ledActiveHigh
+      4,     // ledPwmChannel
+      15,    // buzzerPin
+      true,  // buzzerUsePwm
+      5,     // buzzerPwmChannel
+      2000,  // buzzerFrequencyHz
+      180,   // buzzerVolume (0-255)
+      45,    // stopBeepMs
   };
 } // namespace
 
@@ -45,6 +46,17 @@ MotorController motorController(kPins, kChannels);
 NetworkManager networkManager;
 ControlServer controlServer(80);
 FeedbackController feedbackController(kFeedbackConfig);
+SettingsStore settingsStore;
+AppSettings appSettings;
+
+void applyDriveTuningFromSettings()
+{
+  motorController.setJoystickTuning(
+      appSettings.driveTuning.joystickDeadzonePercent,
+      appSettings.driveTuning.joystickExpo,
+      appSettings.driveTuning.minStartLeftPercent,
+      appSettings.driveTuning.minStartRightPercent);
+}
 
 void setup()
 {
@@ -52,16 +64,19 @@ void setup()
   delay(500);
   Serial.println("[boot] Tank-drive RC car booting...");
 
+  settingsStore.begin();
+  appSettings = settingsStore.load();
+
   motorController.begin(kPwmFrequency, kPwmResolution);
-  motorController.setJoystickTuning(
-      kJoystickDeadzonePercent,
-      kJoystickExpo,
-      kJoystickMinStartLeftPercent,
-      kJoystickMinStartRightPercent);
+  applyDriveTuningFromSettings();
   feedbackController.begin();
   feedbackController.playStartupSound();
 
-  if (!networkManager.beginAccessPoint(kApSsid, kApPassword))
+  if (networkManager.beginAccessPoint(kApSsid, kApPassword))
+  {
+    feedbackController.playWifiConnectedSound();
+  }
+  else
   {
     Serial.println("[boot] Hotspot failed to start. Retrying in loop...");
   }
@@ -83,7 +98,29 @@ void setup()
       },
       [](float deadzonePercent, float expo, float minStartLeftPercent, float minStartRightPercent)
       {
-        motorController.setJoystickTuning(deadzonePercent, expo, minStartLeftPercent, minStartRightPercent);
+        appSettings.driveTuning.joystickDeadzonePercent = deadzonePercent;
+        appSettings.driveTuning.joystickExpo = expo;
+        appSettings.driveTuning.minStartLeftPercent = minStartLeftPercent;
+        appSettings.driveTuning.minStartRightPercent = minStartRightPercent;
+        applyDriveTuningFromSettings();
+      },
+      [](float &deadzonePercent, float &expo, float &minStartLeftPercent, float &minStartRightPercent)
+      {
+        deadzonePercent = appSettings.driveTuning.joystickDeadzonePercent;
+        expo = appSettings.driveTuning.joystickExpo;
+        minStartLeftPercent = appSettings.driveTuning.minStartLeftPercent;
+        minStartRightPercent = appSettings.driveTuning.minStartRightPercent;
+      },
+      []()
+      {
+        settingsStore.save(appSettings);
+        feedbackController.playTuneSavedSound();
+      },
+      []()
+      {
+        appSettings = settingsStore.resetToDefaults();
+        applyDriveTuningFromSettings();
+        feedbackController.playTuneSavedSound();
       },
       []()
       {

@@ -555,6 +555,8 @@ const char kTunePage[] PROGMEM = R"HTML(
       <label for="minRight" style="margin-top:12px;">Min start right (%) <span id="minRightValue">30.0</span></label>
       <input id="minRight" type="range" min="0" max="70" step="1" value="30">
       <button id="applyBtn" type="button">Apply Tuning</button>
+      <button id="saveBtn" type="button" style="background:#f59e0b;margin-top:8px;">Save to Flash</button>
+      <button id="resetBtn" type="button" style="background:#ef4444;color:#fff;margin-top:8px;">Reset Defaults</button>
       <div class="status" id="status">Ready.</div>
     </section>
   </main>
@@ -568,6 +570,8 @@ const char kTunePage[] PROGMEM = R"HTML(
     const minLeftValue = document.getElementById('minLeftValue');
     const minRightValue = document.getElementById('minRightValue');
     const applyBtn = document.getElementById('applyBtn');
+    const saveBtn = document.getElementById('saveBtn');
+    const resetBtn = document.getElementById('resetBtn');
     const status = document.getElementById('status');
 
     function updateLabels(){
@@ -593,10 +597,51 @@ const char kTunePage[] PROGMEM = R"HTML(
       }
     }
 
+    async function loadCurrent(){
+      status.textContent = 'Loading current settings...';
+      try{
+        const response = await fetch('/api/tune/current', { method: 'GET' });
+        const data = await response.json();
+        deadzone.value = String(data.deadzone ?? 6.0);
+        expo.value = String(data.expo ?? 1.8);
+        minLeft.value = String(data.minStartLeft ?? 30.0);
+        minRight.value = String(data.minStartRight ?? 30.0);
+        updateLabels();
+        status.textContent = 'Loaded current settings.';
+      } catch (e){
+        status.textContent = 'Could not load current settings.';
+      }
+    }
+
+    async function saveTune(){
+      status.textContent = 'Saving...';
+      try{
+        await applyTune();
+        await fetch('/api/tune/save', { method: 'POST' });
+        status.textContent = 'Saved to flash.';
+      } catch (e){
+        status.textContent = 'Save failed.';
+      }
+    }
+
+    async function resetDefaults(){
+      status.textContent = 'Resetting defaults...';
+      try{
+        await fetch('/api/tune/reset', { method: 'POST' });
+        await loadCurrent();
+        await applyTune();
+        status.textContent = 'Defaults restored and applied.';
+      } catch (e){
+        status.textContent = 'Reset failed.';
+      }
+    }
+
     [deadzone, expo, minLeft, minRight].forEach((el) => el.addEventListener('input', updateLabels));
     applyBtn.addEventListener('click', applyTune);
+    saveBtn.addEventListener('click', saveTune);
+    resetBtn.addEventListener('click', resetDefaults);
 
-    updateLabels();
+    loadCurrent();
   </script>
 </body>
 </html>
@@ -605,11 +650,21 @@ const char kTunePage[] PROGMEM = R"HTML(
 
 ControlServer::ControlServer(uint16_t port) : server_(port) {}
 
-void ControlServer::begin(const DriveHandler &driveHandler, const JoystickHandler &joystickHandler, const TuneHandler &tuneHandler, const StopHandler &stopHandler)
+void ControlServer::begin(
+    const DriveHandler &driveHandler,
+    const JoystickHandler &joystickHandler,
+    const TuneHandler &tuneHandler,
+    const TuneReadHandler &tuneReadHandler,
+    const TuneActionHandler &tuneSaveHandler,
+    const TuneActionHandler &tuneResetHandler,
+    const StopHandler &stopHandler)
 {
   driveHandler_ = driveHandler;
   joystickHandler_ = joystickHandler;
   tuneHandler_ = tuneHandler;
+  tuneReadHandler_ = tuneReadHandler;
+  tuneSaveHandler_ = tuneSaveHandler;
+  tuneResetHandler_ = tuneResetHandler;
   stopHandler_ = stopHandler;
   registerRoutes();
   server_.begin();
@@ -640,6 +695,15 @@ void ControlServer::registerRoutes()
 
   server_.on("/api/tune", HTTP_GET, [this]()
              { handleTune(); });
+
+  server_.on("/api/tune/current", HTTP_GET, [this]()
+             { handleTuneCurrent(); });
+
+  server_.on("/api/tune/save", HTTP_POST, [this]()
+             { handleTuneSave(); });
+
+  server_.on("/api/tune/reset", HTTP_POST, [this]()
+             { handleTuneReset(); });
 
   server_.on("/api/stop", HTTP_POST, [this]()
              { handleStop(); });
@@ -717,6 +781,47 @@ void ControlServer::handleTune()
     tuneHandler_(deadzone, expo, minStartLeft, minStartRight);
   }
 
+  server_.send(200, "application/json", "{\"ok\":true}");
+}
+
+void ControlServer::handleTuneCurrent()
+{
+  float deadzone = 6.0f;
+  float expo = 1.8f;
+  float minStartLeft = 30.0f;
+  float minStartRight = 30.0f;
+
+  if (tuneReadHandler_)
+  {
+    tuneReadHandler_(deadzone, expo, minStartLeft, minStartRight);
+  }
+
+  String json = "{";
+  json += "\"deadzone\":" + String(deadzone, 1) + ",";
+  json += "\"expo\":" + String(expo, 2) + ",";
+  json += "\"minStartLeft\":" + String(minStartLeft, 1) + ",";
+  json += "\"minStartRight\":" + String(minStartRight, 1);
+  json += "}";
+  server_.send(200, "application/json", json);
+}
+
+void ControlServer::handleTuneSave()
+{
+  Serial.println("[http] /api/tune/save");
+  if (tuneSaveHandler_)
+  {
+    tuneSaveHandler_();
+  }
+  server_.send(200, "application/json", "{\"ok\":true}");
+}
+
+void ControlServer::handleTuneReset()
+{
+  Serial.println("[http] /api/tune/reset");
+  if (tuneResetHandler_)
+  {
+    tuneResetHandler_();
+  }
   server_.send(200, "application/json", "{\"ok\":true}");
 }
 
