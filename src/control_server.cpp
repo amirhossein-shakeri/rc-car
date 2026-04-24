@@ -122,7 +122,7 @@ const char kControlPage[] PROGMEM = R"HTML(
           <button id="pivotLeftBtn" type="button">Pivot Left</button>
           <button id="pivotRightBtn" type="button">Pivot Right</button>
         </div>
-        <p class="hint">Tank drive: use left/right sliders independently for turning, pivoting, and straight driving. Joystick UI: <a href="/drive" style="color:#86efac;">/drive</a></p>
+        <p class="hint">Tank drive: use left/right sliders independently for turning, pivoting, and straight driving. Joystick UI: <a href="/drive" style="color:#86efac;">/drive</a> | Tuning: <a href="/tune" style="color:#86efac;">/tune</a></p>
       </article>
     </section>
   </main>
@@ -321,7 +321,7 @@ const char kJoystickPage[] PROGMEM = R"HTML(
 <body>
   <main class="panel">
     <h1>Joystick Drive</h1>
-    <p class="subtitle">Touch and drag the stick. Releasing touch auto-resets to center.</p>
+    <p class="subtitle">Touch and drag the stick. Releasing touch auto-resets to center. Tune handling at <a href="/tune" style="color:#99f6e4;">/tune</a>.</p>
     <section class="stage" id="stage">
       <div class="ring"></div>
       <div class="dot top"></div>
@@ -472,14 +472,144 @@ const char kJoystickPage[] PROGMEM = R"HTML(
 </body>
 </html>
 )HTML";
+
+const char kTunePage[] PROGMEM = R"HTML(
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Drive Tuning</title>
+  <style>
+    :root{
+      --bg:#08111f;
+      --panel:#102239;
+      --accent:#f97316;
+      --muted:#94a3b8;
+      --text:#e2e8f0;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      min-height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:16px;
+      font-family:"Trebuchet MS","Segoe UI",sans-serif;
+      color:var(--text);
+      background:
+        radial-gradient(circle at 10% 10%,rgba(249,115,22,0.18),transparent 40%),
+        linear-gradient(145deg,#020617,#08111f 50%,#102239);
+    }
+    .panel{
+      width:min(700px,100%);
+      border-radius:18px;
+      border:1px solid #1e3a5f;
+      background:linear-gradient(160deg,rgba(16,34,57,0.95),rgba(2,6,23,0.95));
+      padding:20px;
+      box-shadow:0 22px 50px rgba(2,6,23,0.55);
+    }
+    h1{margin:0 0 8px}
+    p{margin:0 0 14px;color:var(--muted)}
+    .card{
+      border:1px solid #1e3a5f;
+      border-radius:12px;
+      background:var(--panel);
+      padding:12px;
+      margin-bottom:12px;
+    }
+    label{
+      display:flex;
+      justify-content:space-between;
+      color:var(--muted);
+      margin-bottom:8px;
+    }
+    input[type=range]{width:100%}
+    button{
+      width:100%;
+      padding:12px;
+      border:none;
+      border-radius:10px;
+      font-size:1rem;
+      font-weight:700;
+      background:var(--accent);
+      color:#1c1204;
+      cursor:pointer;
+      margin-top:6px;
+    }
+    .status{margin-top:10px;color:#fdba74}
+  </style>
+</head>
+<body>
+  <main class="panel">
+    <h1>Joystick Tuning</h1>
+    <p>Tune deadzone, expo, and separate left/right minimum start power. Applies instantly.</p>
+    <section class="card">
+      <label for="deadzone">Deadzone (%) <span id="deadzoneValue">6.0</span></label>
+      <input id="deadzone" type="range" min="0" max="30" step="0.5" value="6">
+      <label for="expo" style="margin-top:12px;">Expo curve <span id="expoValue">1.80</span></label>
+      <input id="expo" type="range" min="1" max="3" step="0.05" value="1.8">
+      <label for="minLeft" style="margin-top:12px;">Min start left (%) <span id="minLeftValue">30.0</span></label>
+      <input id="minLeft" type="range" min="0" max="70" step="1" value="30">
+      <label for="minRight" style="margin-top:12px;">Min start right (%) <span id="minRightValue">30.0</span></label>
+      <input id="minRight" type="range" min="0" max="70" step="1" value="30">
+      <button id="applyBtn" type="button">Apply Tuning</button>
+      <div class="status" id="status">Ready.</div>
+    </section>
+  </main>
+  <script>
+    const deadzone = document.getElementById('deadzone');
+    const expo = document.getElementById('expo');
+    const minLeft = document.getElementById('minLeft');
+    const minRight = document.getElementById('minRight');
+    const deadzoneValue = document.getElementById('deadzoneValue');
+    const expoValue = document.getElementById('expoValue');
+    const minLeftValue = document.getElementById('minLeftValue');
+    const minRightValue = document.getElementById('minRightValue');
+    const applyBtn = document.getElementById('applyBtn');
+    const status = document.getElementById('status');
+
+    function updateLabels(){
+      deadzoneValue.textContent = Number(deadzone.value).toFixed(1);
+      expoValue.textContent = Number(expo.value).toFixed(2);
+      minLeftValue.textContent = Number(minLeft.value).toFixed(1);
+      minRightValue.textContent = Number(minRight.value).toFixed(1);
+    }
+
+    async function applyTune(){
+      const params = new URLSearchParams({
+        deadzone: Number(deadzone.value).toFixed(1),
+        expo: Number(expo.value).toFixed(2),
+        minStartLeft: Number(minLeft.value).toFixed(1),
+        minStartRight: Number(minRight.value).toFixed(1)
+      });
+      status.textContent = 'Applying...';
+      try{
+        await fetch('/api/tune?' + params.toString(), { method: 'GET' });
+        status.textContent = 'Applied.';
+      } catch (e){
+        status.textContent = 'Failed. Check connection.';
+      }
+    }
+
+    [deadzone, expo, minLeft, minRight].forEach((el) => el.addEventListener('input', updateLabels));
+    applyBtn.addEventListener('click', applyTune);
+
+    updateLabels();
+  </script>
+</body>
+</html>
+)HTML";
 } // namespace
 
 ControlServer::ControlServer(uint16_t port) : server_(port) {}
 
-void ControlServer::begin(const DriveHandler &driveHandler, const JoystickHandler &joystickHandler, const StopHandler &stopHandler)
+void ControlServer::begin(const DriveHandler &driveHandler, const JoystickHandler &joystickHandler, const TuneHandler &tuneHandler, const StopHandler &stopHandler)
 {
   driveHandler_ = driveHandler;
   joystickHandler_ = joystickHandler;
+  tuneHandler_ = tuneHandler;
   stopHandler_ = stopHandler;
   registerRoutes();
   server_.begin();
@@ -499,11 +629,17 @@ void ControlServer::registerRoutes()
   server_.on("/drive", HTTP_GET, [this]()
              { handleDrivePage(); });
 
+  server_.on("/tune", HTTP_GET, [this]()
+             { handleTunePage(); });
+
   server_.on("/api/drive", HTTP_GET, [this]()
              { handleDrive(); });
 
   server_.on("/api/joystick", HTTP_GET, [this]()
              { handleJoystick(); });
+
+  server_.on("/api/tune", HTTP_GET, [this]()
+             { handleTune(); });
 
   server_.on("/api/stop", HTTP_POST, [this]()
              { handleStop(); });
@@ -522,6 +658,12 @@ void ControlServer::handleDrivePage()
 {
   Serial.println("[http] GET /drive");
   server_.send_P(200, "text/html", kJoystickPage);
+}
+
+void ControlServer::handleTunePage()
+{
+  Serial.println("[http] GET /tune");
+  server_.send_P(200, "text/html", kTunePage);
 }
 
 void ControlServer::handleDrive()
@@ -551,6 +693,28 @@ void ControlServer::handleJoystick()
   if (joystickHandler_)
   {
     joystickHandler_(x, y, speedMultiplier, ratio);
+  }
+
+  server_.send(200, "application/json", "{\"ok\":true}");
+}
+
+void ControlServer::handleTune()
+{
+  float deadzone = getFloatArg("deadzone", 6.0f);
+  float expo = getFloatArg("expo", 1.8f);
+  float minStartLeft = getFloatArg("minStartLeft", 30.0f);
+  float minStartRight = getFloatArg("minStartRight", 30.0f);
+
+  Serial.printf(
+      "[http] /api/tune deadzone=%.1f expo=%.2f minStartLeft=%.1f minStartRight=%.1f\n",
+      deadzone,
+      expo,
+      minStartLeft,
+      minStartRight);
+
+  if (tuneHandler_)
+  {
+    tuneHandler_(deadzone, expo, minStartLeft, minStartRight);
   }
 
   server_.send(200, "application/json", "{\"ok\":true}");
