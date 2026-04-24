@@ -6,24 +6,24 @@
 
 namespace
 {
-constexpr MotorPins kPins{
-    23,
-    22,
-    18,
-    19,
-};
+  constexpr MotorPins kPins{
+      23,
+      22,
+      18,
+      19,
+  };
 
-constexpr MotorChannels kChannels{
-    0,
-    1,
-    2,
-    3,
-};
+  constexpr MotorChannels kChannels{
+      0,
+      1,
+      2,
+      3,
+  };
 
-constexpr uint32_t kPwmFrequency = 20000;
-constexpr uint8_t kPwmResolution = 10;
-constexpr char kApSsid[] = "RC-Car-ESP32";
-constexpr char kApPassword[] = "rc-car-2026";
+  constexpr uint32_t kPwmFrequency = 20000;
+  constexpr uint8_t kPwmResolution = 10;
+  constexpr char kApSsid[] = "RC-Car-ESP32";
+  constexpr char kApPassword[] = "rc-car-2026";
 } // namespace
 
 MotorController motorController(kPins, kChannels);

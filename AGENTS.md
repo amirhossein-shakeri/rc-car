@@ -1,16 +1,20 @@
 # AGENTS
 
 ## Project Goal
-- Build a tank-drive RC car powered by ESP32 and controlled from a phone over Wi-Fi.
+
+- Build a tank-drive RC car powered by NodeMCU ESP32-WROOM-32 and controlled from a phone over Wi-Fi.
 
 ## Quality Priorities
+
 - Highest quality parameters:
   - clean-code
   - readability
   - simplicity
   - robustness
+  - self-documented-code
 
 ## Architecture Rules
+
 - Keep logic and implementation modular.
 - Keep each subsystem in separate files.
 - Motor/driving control logic must stay isolated from networking and HTTP concerns.

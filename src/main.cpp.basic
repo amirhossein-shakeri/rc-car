@@ -1,0 +1,160 @@
+#include <Arduino.h>
+
+#define A_A_PIN 18
+#define A_B_PIN 19
+#define B_A_PIN 22
+#define B_B_PIN 23
+
+#define LEFT_A_PIN B_B_PIN
+#define LEFT_B_PIN B_A_PIN
+#define RIGHT_A_PIN A_A_PIN
+#define RIGHT_B_PIN A_B_PIN
+#define LEFT_TO_RIGHT_RATIO 1 // todo: implement in a way that if one motor was faster than the other, we can tune it here to work together
+
+// #define LEFT_A_PIN A_A_PIN
+// #define LEFT_B_PIN A_B_PIN
+// #define RIGHT_A_PIN B_A_PIN
+// #define RIGHT_B_PIN B_B_PIN
+
+#define LEFT_A_CHANNEL 0
+#define LEFT_B_CHANNEL 1
+#define RIGHT_A_CHANNEL 2
+#define RIGHT_B_CHANNEL 3
+
+// put function declarations here:
+void setupMotors(int freq, int resolution);
+void forward(int speed);
+void backward(int speed);
+void motorLeft(int speed);
+void motorRight(int speed);
+void motorRun(int ch1, int ch2, int speed);
+void drive(int leftSpeed, int rightSpeed);
+void brake(); // AIA HIGH, AIB HIGH, BIA HIGH, BIB HIGH
+void coast(); // AIA LOW, AIB LOW, BIA LOW, BIB LOW
+void stop();
+
+// Setup function
+void setup()
+{
+  Serial.begin(115200);
+  Serial.println("Starting...");
+
+  setupMotors(20000, 10); // 20 kHz silent, 10-15 kHz slightly more torque at low speeds
+  delay(1000);
+
+  forward(768);
+  delay(4000);
+  forward(0);
+  delay(50);
+  backward(768);
+  delay(4000);
+
+  // forward(1023);
+  // delay(50);
+  // forward(768);
+  // delay(2000);
+  // forward(512);
+  // delay(2000);
+  // forward(256);
+  // delay(2000);
+
+  forward(0);
+  delay(3000);
+
+  // Motor Left
+  // motorLeft(1023); // Forward at full speed
+  // delay(50);
+  // motorLeft(768);
+  // delay(2000);
+  // motorLeft(-1023); // Reverse at full speed
+  // delay(50);
+  // motorLeft(-768);
+  // delay(2000);
+  // motorLeft(0); // Stop
+  // delay(3000);
+
+  // Motor Right
+  // motorRight(1023); // Forward at full speed
+  // delay(50);
+  // motorRight(768);
+  // delay(2000);
+  // motorRight(-1023); // Reverse at full speed
+  // delay(50);
+  // motorRight(-768);
+  // delay(2000);
+  // motorRight(0); // Stop
+  // delay(3000);
+  Serial.println("Done.");
+}
+
+// Main loop
+void loop()
+{
+  // put your main code here, to run repeatedly:
+}
+
+// Implementations
+void setupMotors(int freq = 20000, int resolution = 12)
+{
+  Serial.println("Setting up motors...");
+  // 0-7 channels are high-speed
+  ledcSetup(0, freq, resolution);
+  ledcSetup(1, freq, resolution);
+  ledcSetup(2, freq, resolution);
+  ledcSetup(3, freq, resolution);
+
+  ledcAttachPin(LEFT_A_PIN, LEFT_A_CHANNEL);
+  ledcAttachPin(LEFT_B_PIN, LEFT_B_CHANNEL);
+  ledcAttachPin(RIGHT_A_PIN, RIGHT_A_CHANNEL);
+  ledcAttachPin(RIGHT_B_PIN, RIGHT_B_CHANNEL);
+}
+
+void motorRun(int ch1, int ch2, int speed)
+{
+  speed = constrain(speed, -1023, 1023);
+
+  if (speed > 0)
+  {
+    // Forward
+    ledcWrite(ch1, speed);
+    ledcWrite(ch2, 0);
+  }
+  else if (speed < 0)
+  {
+    // Reverse
+    ledcWrite(ch1, 0);
+    ledcWrite(ch2, -speed);
+  }
+  else
+  {
+    // Coast or brake
+    ledcWrite(ch1, 0);
+    ledcWrite(ch2, 0);
+  }
+}
+
+void motorLeft(int speed)
+{
+  Serial.print("Left motor speed: ");
+  Serial.println(speed);
+  motorRun(LEFT_A_CHANNEL, LEFT_B_CHANNEL, speed);
+}
+
+void motorRight(int speed)
+{
+  Serial.print("Right motor speed: ");
+  Serial.println(speed);
+  motorRun(RIGHT_A_CHANNEL, RIGHT_B_CHANNEL, speed);
+}
+
+void forward(int speed)
+{
+  motorLeft(speed);
+  motorRight(speed);
+}
+
+void backward(int speed)
+{
+  motorLeft(-speed);
+  motorRight(-speed);
+}
