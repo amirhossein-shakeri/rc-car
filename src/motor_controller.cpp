@@ -2,39 +2,21 @@
 
 #include <math.h>
 
-MotorController::MotorController(const MotorPins &pins, const MotorChannels &channels) : pins_(pins), channels_(channels) {}
+MotorController::MotorController(MotorDriver &driver) : driver_(driver) {}
 
 void MotorController::begin(uint32_t pwmFrequency, uint8_t pwmResolutionBits)
 {
   pwmFrequency_ = pwmFrequency;
   pwmResolutionBits_ = pwmResolutionBits;
-  maxDuty_ = (1 << pwmResolutionBits_) - 1;
+  driver_.begin(pwmFrequency_, pwmResolutionBits_);
+  maxDuty_ = driver_.maxDuty();
 
-  Serial.println("[motor] Initializing PWM channels (legacy-compatible mode)...");
   Serial.printf(
-      "[motor] pins L(A,B)=(%u,%u) R(A,B)=(%u,%u)\n",
-      pins_.leftA,
-      pins_.leftB,
-      pins_.rightA,
-      pins_.rightB);
-  Serial.printf(
-      "[motor] channels L(A,B)=(%u,%u) R(A,B)=(%u,%u)\n",
-      channels_.leftA,
-      channels_.leftB,
-      channels_.rightA,
-      channels_.rightB);
-  ledcSetup(channels_.leftA, pwmFrequency_, pwmResolutionBits_);
-  ledcSetup(channels_.leftB, pwmFrequency_, pwmResolutionBits_);
-  ledcSetup(channels_.rightA, pwmFrequency_, pwmResolutionBits_);
-  ledcSetup(channels_.rightB, pwmFrequency_, pwmResolutionBits_);
-
-  ledcAttachPin(pins_.leftA, channels_.leftA);
-  ledcAttachPin(pins_.leftB, channels_.leftB);
-  ledcAttachPin(pins_.rightA, channels_.rightA);
-  ledcAttachPin(pins_.rightB, channels_.rightB);
-
-  stop();
-  Serial.printf("[motor] Ready. freq=%luHz resolution=%u bits maxDuty=%d\n", pwmFrequency_, pwmResolutionBits_, maxDuty_);
+      "[motor] Ready with %s. freq=%luHz resolution=%u bits maxDuty=%d\n",
+      driver_.name(),
+      pwmFrequency_,
+      pwmResolutionBits_,
+      maxDuty_);
 }
 
 void MotorController::setSpeedMultiplier(float multiplier)
@@ -93,8 +75,7 @@ void MotorController::driveTankPercent(int leftPercent, int rightPercent)
       speedMultiplier_,
       leftToRightRatio_);
 
-  runMotor(channels_.leftA, channels_.leftB, leftSpeed);
-  runMotor(channels_.rightA, channels_.rightB, rightSpeed);
+  driver_.driveDuties(leftSpeed, rightSpeed);
   lastLeftDuty_ = leftSpeed;
   lastRightDuty_ = rightSpeed;
 }
@@ -120,8 +101,7 @@ void MotorController::driveJoystickPercent(int xPercent, int yPercent)
 void MotorController::stop()
 {
   Serial.println("[motor] stop");
-  runMotor(channels_.leftA, channels_.leftB, 0);
-  runMotor(channels_.rightA, channels_.rightB, 0);
+  driver_.stop();
   lastLeftDuty_ = 0;
   lastRightDuty_ = 0;
 }
@@ -163,25 +143,4 @@ int MotorController::applyMinStartPercent(int speedPercent, float minStartPercen
   float boosted = minStartPercent + (magnitude / 100.0f) * (100.0f - minStartPercent);
   boosted = constrain(boosted, minStartPercent, 100.0f);
   return sign * static_cast<int>(boosted);
-}
-
-void MotorController::runMotor(uint8_t channelA, uint8_t channelB, int speed)
-{
-  int bounded = constrain(speed, -maxDuty_, maxDuty_);
-  if (bounded > 0)
-  {
-    ledcWrite(channelA, bounded);
-    ledcWrite(channelB, 0);
-    return;
-  }
-
-  if (bounded < 0)
-  {
-    ledcWrite(channelA, 0);
-    ledcWrite(channelB, -bounded);
-    return;
-  }
-
-  ledcWrite(channelA, 0);
-  ledcWrite(channelB, 0);
 }

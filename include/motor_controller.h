@@ -2,21 +2,7 @@
 
 #include <Arduino.h>
 
-struct MotorPins
-{
-  uint8_t leftA;
-  uint8_t leftB;
-  uint8_t rightA;
-  uint8_t rightB;
-};
-
-struct MotorChannels
-{
-  uint8_t leftA;
-  uint8_t leftB;
-  uint8_t rightA;
-  uint8_t rightB;
-};
+#include "motor_driver.h"
 
 struct MotorDutyState
 {
@@ -28,7 +14,7 @@ struct MotorDutyState
 class MotorController
 {
 public:
-  MotorController(const MotorPins &pins, const MotorChannels &channels);
+  explicit MotorController(MotorDriver &driver);
 
   void begin(uint32_t pwmFrequency, uint8_t pwmResolutionBits);
   void setSpeedMultiplier(float multiplier);
@@ -42,10 +28,8 @@ public:
 private:
   float applyDeadzoneExpo(float inputPercent) const;
   int applyMinStartPercent(int speedPercent, float minStartPercent) const;
-  void runMotor(uint8_t channelA, uint8_t channelB, int speed);
 
-  MotorPins pins_;
-  MotorChannels channels_;
+  MotorDriver &driver_;
   uint32_t pwmFrequency_ = 20000;
   uint8_t pwmResolutionBits_ = 10;
   int maxDuty_ = 1023;

@@ -5,21 +5,23 @@
 #include "motor_controller.h"
 #include "network_manager.h"
 #include "settings_store.h"
+#include "tb6612fng_motor_driver.h"
 
 namespace
 {
-  constexpr MotorPins kPins{
-      23,
-      22,
-      18,
-      19,
+  constexpr TB6612FNGMotorPins kMotorDriverPins{
+      23, // AIN1 -> left motor direction 1
+      22, // AIN2 -> left motor direction 2
+      21, // PWMA -> left motor PWM speed
+      18, // BIN1 -> right motor direction 1
+      19, // BIN2 -> right motor direction 2
+      16, // PWMB -> right motor PWM speed
+      17, // STBY -> driver standby/enable
   };
 
-  constexpr MotorChannels kChannels{
-      0,
-      1,
-      2,
-      3,
+  constexpr TB6612FNGMotorChannels kMotorDriverChannels{
+      0, // PWMA LEDC channel
+      1, // PWMB LEDC channel
   };
 
   constexpr uint32_t kPwmFrequency = 20000;
@@ -43,7 +45,8 @@ namespace
   };
 } // namespace
 
-MotorController motorController(kPins, kChannels);
+TB6612FNGMotorDriver motorDriver(kMotorDriverPins, kMotorDriverChannels);
+MotorController motorController(motorDriver);
 NetworkManager networkManager;
 ControlServer controlServer(80);
 FeedbackController feedbackController(kFeedbackConfig);
@@ -66,7 +69,7 @@ void runMotorBootSelfTestIfEnabled()
     return;
   }
 
-  Serial.println("[boot] Motor self-test start (legacy forward/backward).");
+  Serial.println("[boot] Motor self-test start (TB6612FNG forward/backward).");
   motorController.driveTankPercent(75, 75);
   delay(700);
   motorController.stop();
